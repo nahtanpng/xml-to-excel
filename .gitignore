@@ -1,0 +1,8 @@
+# Notas fiscais reais contem CNPJ, razao social, dados bancarios e certificado
+# da assinatura. Este repositorio e publico -- nunca commitar XML nem planilha.
+*.xml
+*.xlsx
+xml/
+
+__pycache__/
+*.pyc

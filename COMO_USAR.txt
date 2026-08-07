@@ -1,0 +1,207 @@
+========================================================================
+ COMO GERAR AS PLANILHAS DE NOTAS FISCAIS (passo a passo)
+========================================================================
+
+Este programa le os arquivos XML das notas fiscais e monta uma planilha
+do Excel automaticamente. Voce nao precisa saber programar: e so arrastar
+uma pasta por cima de um arquivo e esperar.
+
+Sao dois relatorios diferentes:
+
+  run_servicos.bat  ->  NOTAS DE SERVICO (NFS-e)
+  run.bat           ->  NOTAS DE PRODUTO (NF-e e NFC-e)
+
+
+------------------------------------------------------------------------
+ PARTE 1 - PREPARACAO (so precisa fazer UMA VEZ)
+------------------------------------------------------------------------
+
+1) Instale o Python:
+
+   - Acesse: https://www.python.org/downloads/
+   - Clique no botao amarelo "Download Python".
+   - Abra o arquivo baixado.
+
+   *** MUITO IMPORTANTE ***
+   Na primeira tela da instalacao, MARQUE a caixinha embaixo escrita
+   "Add python.exe to PATH" ANTES de clicar em "Install Now".
+   Se esquecer disso, o programa nao vai funcionar e voce vai precisar
+   desinstalar e instalar de novo.
+
+2) Clique em "Install Now" e espere terminar. Pode fechar a janela.
+
+3) Pronto. Nao precisa repetir isso nunca mais neste computador.
+
+
+------------------------------------------------------------------------
+ PARTE 2 - GERANDO A PLANILHA DE NOTAS DE SERVICO
+------------------------------------------------------------------------
+
+1) Junte todos os XMLs das notas de servico dentro de UMA pasta.
+   Exemplo: crie uma pasta na Area de Trabalho chamada "NOTAS JULHO"
+   e jogue os XMLs la dentro.
+
+2) Abra a pasta onde estao os arquivos do programa (a pasta que tem o
+   run_servicos.bat).
+
+3) Arraste a pasta "NOTAS JULHO" e SOLTE ELA EM CIMA do arquivo
+   run_servicos.bat.
+
+   (Dica: deixe as duas janelas do Windows lado a lado que fica facil.)
+
+4) Vai abrir uma tela preta escrevendo varias linhas. E normal.
+   Da primeira vez ela demora um pouco mais, porque esta baixando o que
+   precisa da internet. Espere ate aparecer "Pressione qualquer tecla".
+
+5) Abra a pasta "NOTAS JULHO". Dentro dela vai ter um arquivo novo:
+
+   notas_servico.xlsx
+
+   E so abrir no Excel.
+
+
+------------------------------------------------------------------------
+ PARTE 3 - O QUE VEM NA PLANILHA DE SERVICOS
+------------------------------------------------------------------------
+
+O arquivo tem duas abas (as abinhas la embaixo, no Excel):
+
+ABA "NFS-e" -> uma linha para cada nota, com as colunas:
+
+   NF             Numero da nota
+   STATUS         Normal ou Cancelada (veja mais abaixo)
+   PRESTADOR      Quem prestou o servico
+   TOMADOR        Quem contratou o servico (fica em branco se a nota nao
+                  identificar o tomador)
+   DESCRICAO      Descricao livre do servico, digitada na nota
+   SERVICO        Enquadramento tributario municipal do servico
+   VALOR          Valor bruto do servico
+   ISS            Valor do ISS da nota
+   RET            Se o ISS foi retido pelo tomador (Retido / Nao retido)
+   INSS           Retencao de INSS
+   CSLL           Retencao de CSLL (1%)
+   PIS            Retencao de PIS (0,65%)
+   COFINS         Retencao de COFINS (3%)
+   CSRF           Formula no Excel que soma CSLL + PIS + COFINS da mesma
+                  linha (tem que dar 4,65% do VALOR)
+   IRR            Retencao de Imposto de Renda
+   VALOR LIQUIDO  VALOR menos INSS, CSRF e IRR
+
+ABA "Total NFS-e" -> o resumo, somando tudo por mes de competencia,
+   e no final uma linha "Total Geral" com a soma de todos os meses.
+
+OBSERVACAO SOBRE AS RETENCOES:
+Quando a nota nao tem retencao federal nenhuma, o proprio XML nao traz
+essa informacao - entao as colunas de retencao ficam zeradas e o
+VALOR LIQUIDO fica igual ao VALOR. Isso esta certo, nao e erro.
+
+*** ATENCAO: NUMERO VERMELHO NA COLUNA CSRF ***
+
+A soma de CSLL + PIS + COFINS tem que dar exatamente 4,65% do valor da
+nota (1% + 0,65% + 3%). O programa confere isso sozinho em cada nota.
+
+   - Se bater, a nota sai normal e voce ve os tres valores separados
+     nas colunas CSLL, PIS e COFINS.
+
+   - Se NAO bater, a nota ENTRA NA PLANILHA DO MESMO JEITO (ela nao
+     some, nao e descartada), mas o numero da coluna CSRF aparece em
+     VERMELHO e as colunas CSLL, PIS e COFINS ficam zeradas.
+     Isso quer dizer: "o valor retido nao fecha nos 4,65%, entao nao da
+     para dividir nas tres alicotas - CONFIRA ESSA NOTA NA MAO".
+     Na tela preta tambem aparece um aviso com o valor que veio na nota
+     e o valor que era esperado.
+
+   - Nota sem nenhuma retencao de CSRF fica zerada e NAO sai em
+     vermelho. Isso e normal.
+
+Por causa disso, na aba de totais a coluna CSRF e a que vale para saber
+quanto foi retido no total. Nas notas vermelhas so ela esta preenchida,
+entao somar CSLL + PIS + COFINS pode dar um numero menor.
+
+*** NOTAS CANCELADAS ***
+
+Quando uma nota e cancelada, a Receita gera um XML separado so do
+cancelamento (nao e a mesma nota, e um arquivo a parte). Se voce jogar
+esse arquivo de cancelamento junto com os XMLs na mesma pasta, o
+programa reconhece sozinho (nao precisa nomear o arquivo de um jeito
+especial) e faz o seguinte com a nota cancelada:
+
+   - A coluna STATUS mostra "Cancelada".
+   - A LINHA INTEIRA da nota sai destacada em VERMELHO na planilha.
+   - Todos os valores em dinheiro da linha (VALOR, ISS, INSS, CSLL,
+     PIS, COFINS, CSRF, IRR, VALOR LIQUIDO) saem zerados, e a nota
+     cancelada NAO entra na soma da aba "Total NFS-e".
+   - As colunas de texto (PRESTADOR, TOMADOR, DESCRICAO, SERVICO, RET)
+     continuam preenchidas, so para voce identificar qual nota foi
+     cancelada.
+
+O arquivo do cancelamento em si nao vira uma linha na planilha - ele so
+serve para marcar a nota correspondente.
+
+
+------------------------------------------------------------------------
+ PARTE 4 - NOTAS DE PRODUTO (NF-e / NFC-e)
+------------------------------------------------------------------------
+
+Funciona exatamente igual, mas arrastando a pasta em cima do run.bat
+(sem o "_servicos").
+
+O arquivo gerado se chama notas_fiscais.xlsx e tem quatro abas:
+NF-e 55, Total NF-e 55, NFC-e 65 e Total NFC-e 65.
+
+VOCE PODE MISTURAR OS XMLS NA MESMA PASTA.
+Cada programa reconhece sozinho o que e nota de servico e o que e nota
+de produto, e ignora o resto. Ou seja: pode jogar tudo junto numa pasta
+so, arrastar ela nos dois .bat, e vai sair uma planilha de cada tipo.
+
+
+------------------------------------------------------------------------
+ PARTE 5 - PROBLEMAS COMUNS
+------------------------------------------------------------------------
+
+"Python nao encontrado. Instale em https://..."
+   -> Ou o Python nao foi instalado, ou foi instalado SEM marcar a
+      caixinha "Add python.exe to PATH". Desinstale e refaca a PARTE 1
+      lembrando de marcar a caixinha.
+
+"Nenhuma nota de servico encontrada."
+   -> A pasta que voce arrastou nao tem XML de nota de servico dentro.
+      Confira se voce arrastou a pasta certa, e se os arquivos sao
+      mesmo .xml (e nao PDF ou print da nota).
+
+"Ignorado (nao e NFS-e nem NF-e): arquivo.xml"
+   -> Tem um XML na pasta que nao e nota fiscal. Pode ignorar o aviso,
+      o programa continua normalmente com os outros.
+
+A tela preta abre e fecha na hora
+   -> Voce provavelmente deu dois cliques no .bat em vez de arrastar
+      a pasta. Tente arrastando a pasta por cima dele.
+
+Aparece "Error processing" no nome de algum arquivo
+   -> Aquele XML especifico esta corrompido ou incompleto. Os outros
+      foram processados normalmente; baixe aquela nota de novo.
+
+O Excel abre com os numeros estranhos ou tudo numa coluna so
+   -> Abra o arquivo .xlsx pelo Excel (botao direito > Abrir com >
+      Excel). Nao tente abrir pelo bloco de notas.
+
+
+------------------------------------------------------------------------
+ OBSERVACAO IMPORTANTE SOBRE OS ARQUIVOS
+------------------------------------------------------------------------
+
+Os XMLs de nota fiscal contem dados sigilosos: CNPJ, razao social,
+e-mail, dados bancarios e o certificado digital de quem emitiu.
+Guarde essas pastas em local seguro e nao mande esses arquivos para
+sites, grupos de WhatsApp ou e-mails que nao sejam necessarios.
+
+
+------------------------------------------------------------------------
+ SO PARA QUEM USA LINUX OU MAC (o .bat e so do Windows)
+------------------------------------------------------------------------
+
+   pip install -r requirements.txt
+   python nfse_report.py /caminho/da/pasta/com/os/xmls
+   python billing_report.py /caminho/da/pasta/com/os/xmls
+
+========================================================================

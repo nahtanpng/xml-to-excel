@@ -5,6 +5,8 @@ import xml.etree.ElementTree as ET
 
 import pandas as pd
 
+from xml_utils import NFE_NS, build_summary, detect_layout, parse_text, to_float
+
 # Configure the logging
 logging.basicConfig(
     level=logging.INFO,
@@ -12,7 +14,7 @@ logging.basicConfig(
     datefmt='%H:%M:%S'
 )
 
-NAMESPACES = {'nfe': 'http://www.portalfiscal.inf.br/nfe'}
+NAMESPACES = {'nfe': NFE_NS}
 
 TYPE_MAP = {'0': 'Entrada', '1': 'Saída'}
 
@@ -24,38 +26,33 @@ FINALITY_MAP = {
 }
 
 
-def parse_text(element, path):
-    found = element.find(path, NAMESPACES)
-    return found.text if found is not None else None
-
-
 def extract_cnpj_or_cpf(parent):
-    cpf = parse_text(parent, 'nfe:CPF')
-    cnpj = parse_text(parent, 'nfe:CNPJ')
+    if parent is None:
+        return None
+    cpf = parse_text(parent, 'nfe:CPF', NAMESPACES)
+    cnpj = parse_text(parent, 'nfe:CNPJ', NAMESPACES)
     return cpf or cnpj
 
 
-def process_xml_file(file_path):
-    tree = ET.parse(file_path)
-    root = tree.getroot()
-
+def process_xml_file(root):
     return {
-        'Número': parse_text(root, './/nfe:nNF'),
-        'Serie': parse_text(root, './/nfe:serie'),
-        'Tipo': TYPE_MAP.get(parse_text(root, './/nfe:tpNF'), 'Desconhecido'),
-        'Finalidade': FINALITY_MAP.get(parse_text(root, './/nfe:finNFe'), 'Desconhecida'),
-        'Natureza da Operação': parse_text(root, './/nfe:natOp'),
-        'Dt_Emissão': parse_text(root, './/nfe:dhEmi'),
+        'Modelo': parse_text(root, './/nfe:ide/nfe:mod', NAMESPACES),
+        'Número': parse_text(root, './/nfe:nNF', NAMESPACES),
+        'Serie': parse_text(root, './/nfe:serie', NAMESPACES),
+        'Tipo': TYPE_MAP.get(parse_text(root, './/nfe:tpNF', NAMESPACES), 'Desconhecido'),
+        'Finalidade': FINALITY_MAP.get(parse_text(root, './/nfe:finNFe', NAMESPACES), 'Desconhecida'),
+        'Natureza da Operação': parse_text(root, './/nfe:natOp', NAMESPACES),
+        'Dt_Emissão': parse_text(root, './/nfe:dhEmi', NAMESPACES),
         'CPF_CNPJ_Emit': extract_cnpj_or_cpf(root.find('.//nfe:emit', NAMESPACES)),
-        'Rz_Emit': parse_text(root, './/nfe:emit/nfe:xNome'),
-        'IE_Emit': parse_text(root, './/nfe:emit/nfe:IE'),
+        'Rz_Emit': parse_text(root, './/nfe:emit/nfe:xNome', NAMESPACES),
+        'IE_Emit': parse_text(root, './/nfe:emit/nfe:IE', NAMESPACES),
         'CPF_CNPJ_Dest': extract_cnpj_or_cpf(root.find('.//nfe:dest', NAMESPACES)),
-        'Rz_Dest': parse_text(root, './/nfe:dest/nfe:xNome'),
-        'IE_Dest': parse_text(root, './/nfe:dest/nfe:indIEDest'),
-        'UF_Dest': parse_text(root, './/nfe:dest/nfe:enderDest/nfe:UF'),
-        'Valor': float(parse_text(root, './/nfe:vNF') or 0),
-        'Chave': parse_text(root, './/nfe:chNFe'),
-        'Status': parse_text(root, './/nfe:xMotivo'),
+        'Rz_Dest': parse_text(root, './/nfe:dest/nfe:xNome', NAMESPACES),
+        'IE_Dest': parse_text(root, './/nfe:dest/nfe:indIEDest', NAMESPACES),
+        'UF_Dest': parse_text(root, './/nfe:dest/nfe:enderDest/nfe:UF', NAMESPACES),
+        'Valor': to_float(parse_text(root, './/nfe:vNF', NAMESPACES)),
+        'Chave': parse_text(root, './/nfe:chNFe', NAMESPACES),
+        'Status': parse_text(root, './/nfe:xMotivo', NAMESPACES),
     }
 
 
@@ -63,26 +60,43 @@ def process_folder(folder_path):
     all_data = []
 
     for filename in os.listdir(folder_path):
-        if filename.endswith('.xml'):
-            file_path = os.path.join(folder_path, filename)
+        if not filename.endswith('.xml'):
+            continue
+
+        file_path = os.path.join(folder_path, filename)
+        try:
+            root = ET.parse(file_path).getroot()
+            layout = detect_layout(root)
+
+            if layout in ('nfse', 'evento'):
+                continue  # Nota de serviço ou evento de NFS-e: tratados pelo nfse_report.py
+            if layout != 'nfe':
+                logging.warning(f'Ignorado (não é NF-e nem NFS-e): {filename}')
+                continue
+
             logging.info(f'Processing: {file_path}')
-            try:
-                row = process_xml_file(file_path)
-                all_data.append(row)
-            except Exception as e:
-                logging.error(f'Error processing {filename}: {e}')
+            all_data.append(process_xml_file(root))
+        except Exception as e:
+            logging.error(f'Error processing {filename}: {e}')
 
     return all_data
+
+
+def write_model_sheets(writer, sub_df, detail_name, total_name):
+    """Escreve a aba de detalhe (uma linha por nota) e a aba de total para um modelo."""
+    sub_df.to_excel(writer, sheet_name=detail_name, index=False)
+    build_summary(sub_df, 'Tipo', ['Valor']).to_excel(writer, sheet_name=total_name, index=False)
 
 
 def save_to_excel(data, output_path):
     df = pd.DataFrame(data)
 
-    with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-        df.to_excel(writer, sheet_name='Notas Fiscais', index=False)
+    df_55 = df[df['Modelo'] == '55']
+    df_65 = df[df['Modelo'] == '65']
 
-        summary = df.groupby('Tipo')['Valor'].sum().reset_index()
-        summary.to_excel(writer, sheet_name='Resumo', index=False)
+    with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
+        write_model_sheets(writer, df_55, 'NF-e 55', 'Total NF-e 55')
+        write_model_sheets(writer, df_65, 'NFC-e 65', 'Total NFC-e 65')
 
 
 def main():
