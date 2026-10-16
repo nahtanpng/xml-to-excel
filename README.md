@@ -2,7 +2,7 @@
 
 ## 🇧🇷 Relatório de notas (NF-e 55 e NFC-e 65) — `billing_report.py`
 
-O `billing_report.py` lê os XMLs de uma pasta e gera um Excel (`notas_fiscais.xlsx`) com **4 abas**:
+O `billing_report.py` lê os XMLs de uma pasta e gera um Excel (`notas_fiscais.xlsx`) com **4 abas** (mais `Erros`, se houver falha):
 
 | Aba | Conteúdo |
 |-----|----------|
@@ -10,6 +10,7 @@ O `billing_report.py` lê os XMLs de uma pasta e gera um Excel (`notas_fiscais.x
 | `NFC-e 65` | Uma linha por nota do modelo 65 |
 | `Total NF-e 55` | Soma do `Valor` por `Tipo` (com total geral) do modelo 55 |
 | `Total NFC-e 65` | Soma do `Valor` por `Tipo` (com total geral) do modelo 65 |
+| `Erros` | Só aparece se algum XML falhou — ver seção *Aba de erros* abaixo |
 
 O modelo é detectado pela tag `<mod>` do XML. Notas NFC-e sem `<dest>` (consumidor não
 identificado) são suportadas — os campos de destinatário ficam vazios.
@@ -32,12 +33,13 @@ python billing_report.py <pasta/com/os/xmls>
 
 O `nfse_report.py` lê os XMLs de **NFS-e do padrão nacional** (namespace
 `http://www.sped.fazenda.gov.br/nfse`) de uma pasta e gera um Excel (`notas_servico.xlsx`)
-com **2 abas**:
+com **2 abas** (mais `Erros`, se houver falha):
 
 | Aba | Conteúdo |
 |-----|----------|
 | `NFS-e` | Uma linha por nota, ordenada por data de emissão |
 | `Total NFS-e` | Soma das colunas de valor por mês de competência (com total geral) |
+| `Erros` | Só aparece se algum XML falhou — ver seção *Aba de erros* abaixo |
 
 Colunas da aba de detalhe:
 
@@ -118,6 +120,22 @@ python nfse_report.py <pasta/com/os/xmls>
 Os dois relatórios detectam o leiaute pelo namespace da raiz e **ignoram o que não é do seu tipo**.
 Dá para apontar `run.bat` e `run_servicos.bat` para a mesma pasta: um gera o `notas_fiscais.xlsx`
 só com as NF-e/NFC-e, o outro o `notas_servico.xlsx` só com as NFS-e.
+
+### ⚠️ Aba de erros
+
+Quando algum XML falha no processamento, os dois relatórios continuam com os demais arquivos e
+acrescentam uma aba **`Erros`** no fim da planilha, com uma linha por arquivo:
+
+| Coluna | Conteúdo |
+|--------|----------|
+| `Arquivo` | Nome do XML que falhou |
+| `Nota` | Número da nota (`nNF` na NF-e, `nNFSe` na NFS-e, `nDFSe` no evento de cancelamento) |
+| `Série` | Série da nota (`serie` na NF-e, `infDPS/serie` na NFS-e) |
+| `Erro` | Tipo e mensagem da exceção |
+
+`Nota` e `Série` ficam vazias quando o XML nem pôde ser lido (arquivo corrompido ou truncado).
+Como nesse caso não dá para saber o leiaute, o mesmo arquivo aparece nas duas planilhas. A
+planilha é gerada mesmo se **todos** os XMLs falharem — só com a aba `Erros`.
 
 ---
 

@@ -5,7 +5,9 @@ import xml.etree.ElementTree as ET
 
 import pandas as pd
 
-from xml_utils import NFE_NS, build_summary, detect_layout, parse_text, to_float
+from xml_utils import (
+    NFE_NS, build_error, build_summary, detect_layout, parse_text, to_float, write_errors_sheet,
+)
 
 # Configure the logging
 logging.basicConfig(
@@ -56,14 +58,20 @@ def process_xml_file(root):
     }
 
 
+def identify_note(root):
+    return parse_text(root, './/nfe:nNF', NAMESPACES), parse_text(root, './/nfe:serie', NAMESPACES)
+
+
 def process_folder(folder_path):
     all_data = []
+    errors = []
 
     for filename in os.listdir(folder_path):
         if not filename.endswith('.xml'):
             continue
 
         file_path = os.path.join(folder_path, filename)
+        root = None
         try:
             root = ET.parse(file_path).getroot()
             layout = detect_layout(root)
@@ -78,8 +86,9 @@ def process_folder(folder_path):
             all_data.append(process_xml_file(root))
         except Exception as e:
             logging.error(f'Error processing {filename}: {e}')
+            errors.append(build_error(filename, *identify_note(root), e))
 
-    return all_data
+    return all_data, errors
 
 
 def write_model_sheets(writer, sub_df, detail_name, total_name):
@@ -88,15 +97,13 @@ def write_model_sheets(writer, sub_df, detail_name, total_name):
     build_summary(sub_df, 'Tipo', ['Valor']).to_excel(writer, sheet_name=total_name, index=False)
 
 
-def save_to_excel(data, output_path):
-    df = pd.DataFrame(data)
-
-    df_55 = df[df['Modelo'] == '55']
-    df_65 = df[df['Modelo'] == '65']
-
+def save_to_excel(data, errors, output_path):
     with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-        write_model_sheets(writer, df_55, 'NF-e 55', 'Total NF-e 55')
-        write_model_sheets(writer, df_65, 'NFC-e 65', 'Total NFC-e 65')
+        if data:
+            df = pd.DataFrame(data)
+            write_model_sheets(writer, df[df['Modelo'] == '55'], 'NF-e 55', 'Total NF-e 55')
+            write_model_sheets(writer, df[df['Modelo'] == '65'], 'NFC-e 65', 'Total NFC-e 65')
+        write_errors_sheet(writer, errors)
 
 
 def main():
@@ -105,12 +112,14 @@ def main():
         return
 
     folder_path = sys.argv[1]
-    data = process_folder(folder_path)
+    data, errors = process_folder(folder_path)
 
-    if data:
+    if data or errors:
         output_file = os.path.join(folder_path, 'notas_fiscais.xlsx')
-        save_to_excel(data, output_file)
+        save_to_excel(data, errors, output_file)
         logging.info(f'\nArquivo salvo em: {output_file}')
+        if errors:
+            logging.warning(f'{len(errors)} arquivo(s) com erro — veja a aba "Erros" da planilha.')
     else:
         logging.warning("Nenhum dado encontrado.")
 

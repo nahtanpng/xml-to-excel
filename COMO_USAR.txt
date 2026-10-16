@@ -90,6 +90,8 @@ ABA "NFS-e" -> uma linha para cada nota, com as colunas:
 ABA "Total NFS-e" -> o resumo, somando tudo por mes de competencia,
    e no final uma linha "Total Geral" com a soma de todos os meses.
 
+ABA "Erros" -> SO APARECE se algum XML deu problema (veja a PARTE 5).
+
 OBSERVACAO SOBRE AS RETENCOES:
 Quando a nota nao tem retencao federal nenhuma, o proprio XML nao traz
 essa informacao - entao as colunas de retencao ficam zeradas e o
@@ -147,7 +149,8 @@ Funciona exatamente igual, mas arrastando a pasta em cima do run.bat
 (sem o "_servicos").
 
 O arquivo gerado se chama notas_fiscais.xlsx e tem quatro abas:
-NF-e 55, Total NF-e 55, NFC-e 65 e Total NFC-e 65.
+NF-e 55, Total NF-e 55, NFC-e 65 e Total NFC-e 65 (e a aba "Erros",
+se algum XML deu problema - veja a PARTE 5).
 
 VOCE PODE MISTURAR OS XMLS NA MESMA PASTA.
 Cada programa reconhece sozinho o que e nota de servico e o que e nota
@@ -180,6 +183,15 @@ A tela preta abre e fecha na hora
 Aparece "Error processing" no nome de algum arquivo
    -> Aquele XML especifico esta corrompido ou incompleto. Os outros
       foram processados normalmente; baixe aquela nota de novo.
+      A planilha tambem ganha uma aba "Erros" no final, com uma linha
+      para cada arquivo que falhou:
+         Arquivo   Nome do arquivo XML
+         Nota      Numero da nota
+         Serie     Serie da nota
+         Erro      O que deu errado
+      Se o arquivo estiver tao estragado que nem da para ler, Nota e
+      Serie ficam em branco - use o nome do arquivo para achar a nota.
+      Quando nao ha nenhum erro, essa aba nao aparece.
 
 O Excel abre com os numeros estranhos ou tudo numa coluna so
    -> Abra o arquivo .xlsx pelo Excel (botao direito > Abrir com >
