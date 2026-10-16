@@ -5,6 +5,8 @@ import pandas as pd
 NFE_NS = 'http://www.portalfiscal.inf.br/nfe'
 NFSE_NS = 'http://www.sped.fazenda.gov.br/nfse'
 
+ERROR_COLUMNS = ['Arquivo', 'Nota', 'Série', 'Erro']
+
 
 def detect_layout(root):
     """Identifica o leiaute do XML pela raiz.
@@ -44,3 +46,26 @@ def build_summary(df, group_col, value_cols):
     summary = df.groupby(group_col)[value_cols].sum().reset_index()
     total_row = pd.DataFrame([{group_col: 'Total Geral', **df[value_cols].sum().to_dict()}])
     return pd.concat([summary, total_row], ignore_index=True)
+
+
+def build_error(filename, note, series, exc):
+    """Linha da aba "Erros". Nota/série vêm vazias quando o XML nem chegou a ser lido."""
+    return {
+        'Arquivo': filename,
+        'Nota': note,
+        'Série': series,
+        # Muitas exceções do ElementTree e de atributo têm mensagem vazia ou crua; o nome
+        # do tipo ajuda a entender o que aconteceu.
+        'Erro': f'{type(exc).__name__}: {exc}',
+    }
+
+
+def write_errors_sheet(writer, errors):
+    """Grava a aba "Erros" (só quando algum arquivo falhou)."""
+    if not errors:
+        return
+
+    pd.DataFrame(errors, columns=ERROR_COLUMNS).to_excel(writer, sheet_name='Erros', index=False)
+    worksheet = writer.sheets['Erros']
+    worksheet.set_column(ERROR_COLUMNS.index('Arquivo'), ERROR_COLUMNS.index('Arquivo'), 50)
+    worksheet.set_column(ERROR_COLUMNS.index('Erro'), ERROR_COLUMNS.index('Erro'), 80)

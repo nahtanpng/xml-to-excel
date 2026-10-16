@@ -6,7 +6,9 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 from xlsxwriter.utility import xl_col_to_name
 
-from xml_utils import NFSE_NS, build_summary, detect_layout, parse_text, to_float
+from xml_utils import (
+    NFSE_NS, build_error, build_summary, detect_layout, parse_text, to_float, write_errors_sheet,
+)
 
 # Configure the logging
 logging.basicConfig(
@@ -158,15 +160,30 @@ def process_xml_file(root):
     }
 
 
+def identify_note(root):
+    """Número e série para a aba "Erros". No evento de cancelamento, o número é o da nota
+    cancelada e não há série."""
+    if root is None:
+        return None, None
+    if detect_layout(root) == 'evento':
+        return parse_text(root, 'nfse:infEvento/nfse:nDFSe', NAMESPACES), None
+    return (
+        parse_text(root, 'nfse:infNFSe/nfse:nNFSe', NAMESPACES),
+        parse_text(root, 'nfse:infNFSe/nfse:DPS/nfse:infDPS/nfse:serie', NAMESPACES),
+    )
+
+
 def process_folder(folder_path):
     note_entries = []
     canceled_notes = set()
+    errors = []
 
     for filename in os.listdir(folder_path):
         if not filename.endswith('.xml'):
             continue
 
         file_path = os.path.join(folder_path, filename)
+        root = None
         try:
             root = ET.parse(file_path).getroot()
             layout = detect_layout(root)
@@ -186,6 +203,7 @@ def process_folder(folder_path):
             note_entries.append(process_xml_file(root))
         except Exception as e:
             logging.error(f'Error processing {filename}: {e}')
+            errors.append(build_error(filename, *identify_note(root), e))
 
     # Duas fases porque o evento de cancelamento pode aparecer antes ou depois do XML
     # da nota na pasta — não dá para marcar durante o primeiro loop.
@@ -193,7 +211,7 @@ def process_folder(folder_path):
         if entry['NF'] in canceled_notes:
             apply_cancellation(entry)
 
-    return note_entries
+    return note_entries, errors
 
 
 def write_csrf_column(writer, df):
@@ -234,15 +252,16 @@ def highlight_canceled_rows(writer, df):
     })
 
 
-def save_to_excel(data, output_path):
-    df = pd.DataFrame(data).sort_values('Dt_Emissão')
-
+def save_to_excel(data, errors, output_path):
     with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
-        df[DETAIL_COLUMNS].to_excel(writer, sheet_name='NFS-e', index=False)
-        write_csrf_column(writer, df)
-        highlight_canceled_rows(writer, df)
-        summary = build_summary(df, 'Mês Competência', VALUE_COLUMNS)
-        summary.to_excel(writer, sheet_name='Total NFS-e', index=False)
+        if data:
+            df = pd.DataFrame(data).sort_values('Dt_Emissão')
+            df[DETAIL_COLUMNS].to_excel(writer, sheet_name='NFS-e', index=False)
+            write_csrf_column(writer, df)
+            highlight_canceled_rows(writer, df)
+            summary = build_summary(df, 'Mês Competência', VALUE_COLUMNS)
+            summary.to_excel(writer, sheet_name='Total NFS-e', index=False)
+        write_errors_sheet(writer, errors)
 
 
 def main():
@@ -251,12 +270,14 @@ def main():
         return
 
     folder_path = sys.argv[1]
-    data = process_folder(folder_path)
+    data, errors = process_folder(folder_path)
 
-    if data:
+    if data or errors:
         output_file = os.path.join(folder_path, 'notas_servico.xlsx')
-        save_to_excel(data, output_file)
+        save_to_excel(data, errors, output_file)
         logging.info(f'\nArquivo salvo em: {output_file}')
+        if errors:
+            logging.warning(f'{len(errors)} arquivo(s) com erro — veja a aba "Erros" da planilha.')
     else:
         logging.warning("Nenhuma nota de serviço encontrada.")
 
